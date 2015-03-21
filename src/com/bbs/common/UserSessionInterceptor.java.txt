@@ -1,0 +1,244 @@
+package com.bbs.common;
+
+import java.util.Calendar;
+import java.util.Date;
+import java.util.GregorianCalendar;
+import java.util.HashMap;
+import java.util.Map;
+
+import javax.servlet.http.Cookie;
+
+//import net.sf.json.JSONObject;
+
+import org.apache.log4j.Logger;
+import org.apache.struts2.ServletActionContext;
+//import org.aspectj.weaver.ast.Var;
+
+import com.opensymphony.xwork2.ActionInvocation;
+import com.opensymphony.xwork2.interceptor.MethodFilterInterceptor;
+import com.bbs.common.base.BaseAction;
+import com.bbs.web.data.QbaAllUserinfoVO;
+import com.bbs.web.data.QbaRegisterUserinfoVO;
+import com.bbs.web.service.IvipUserModulesService;
+import com.bbs.web.service.impl.VipUserModulesService;
+
+/*** 获取用户会话信息的拦截器 ***/
+public class UserSessionInterceptor extends MethodFilterInterceptor {
+	/**
+	 * 
+	 */
+	// private static final long serialVersionUID = 1L;
+	private Logger LOG = Logger.getLogger(getClass());
+	public static final String sessionid_cookie_key = "sessionid";
+
+	private static Map filterMethodsMap = new HashMap();
+	
+	//TODO TODO start here, use the IOC, to get the service
+	private IvipUserModulesService ivipUserModulesService;
+	
+
+	// spring初始化方法,map中配置的是用户时候用某页面的管理权限
+	private void initInterceptor() {
+		// filterMethodsMap.put("addressbook!getAddressbookList", 1); //通讯录
+		// filterMethodsMap.put("group!execute", 2); //群组
+		// filterMethodsMap.put("archive!execute", 3); //企业管理
+		// filterMethodsMap.put("getResourceList!getResourceList", 4); //知识库
+		// filterMethodsMap.put("attendance!getAttendanceList", 5); //考勤
+		// filterMethodsMap.put("shopvisit!getShopvisitList", 6); //巡店
+		filterMethodsMap.put("home!execute", 1);//个人主页 暂时没用
+		
+		
+	}
+
+	private Integer isInterceptPage(String filterName) {
+		Integer flag = (Integer) filterMethodsMap.get(filterName);
+		if (flag != null)
+			return flag;
+		else
+			return 0;
+	}
+
+	// 拦截器核心实现方法
+	protected String doIntercept(final ActionInvocation invocation)
+			throws Exception {
+		boolean okFlag;
+		try {
+			okFlag = getSessionInfo(invocation);
+		} catch (Exception e) {
+			LOG.error(e.getMessage(), e);
+			return BaseAction.response_exception;
+		}
+
+		if (okFlag) {
+			try {
+				return invocation.invoke();
+			} catch (Exception e) {
+				LOG.error(e.getMessage(), e);
+				return BaseAction.response_exception;
+			}
+		} else {
+			return BaseAction.response_rermission_denied;
+		}
+	}
+
+	// 从sessionid获取SessionInfo
+	private boolean getSessionInfo(ActionInvocation invocation) {
+		// debug info
+		String action_name = invocation.getInvocationContext().getName();
+		String method = invocation.getProxy().getMethod();
+		LOG.info("**********>>UserSessionInterceptor_fileter_ActionName!MethodName:"
+						+ action_name + "!" + method + "<<**********");
+
+		String SessionID = getSessionidStr();		 
+		if (SessionID != null && SessionID.length() > 0) {
+			QbaRegisterUserinfoVO qbaRegisterUserinfoVO = Constants.findQbaSessionid(SessionID);
+			if (qbaRegisterUserinfoVO != null) {
+				ServletActionContext.getRequest().setAttribute(
+						BaseAction.sessionInfo, qbaRegisterUserinfoVO);
+				if (visitPageAuthority(invocation, qbaRegisterUserinfoVO)) {
+					return true;
+				} else {
+					return false;
+				}
+			}
+		}
+
+		return false;
+	}
+	
+	//根据SessionID获取SessionInfo(qbaAllUserinfoVO)	
+	
+	/**
+	 * Description: Just get the userinfo from session
+	 * @return QbaAllUserinfoVO	 
+	 */
+	public static QbaAllUserinfoVO getSessionUserInfo() {	
+
+		String SessionID = getSessionidStr();	
+		QbaAllUserinfoVO qbaAllUserinfoVO=null;
+		if (SessionID != null && SessionID.length() > 0) {
+			qbaAllUserinfoVO = Constants.findQbaSessionid(SessionID);			
+		}
+		return qbaAllUserinfoVO;
+	}
+	
+
+	
+	/**
+	 * Description: Update the session userinfo with the passed param
+	 * @param qbaAllUserinfoVO
+	 */
+	public static void updateSessionUserInfo(QbaAllUserinfoVO qbaAllUserinfoVO) {	
+
+		String SessionID = getSessionidStr();
+		delQbaSessionInfo(SessionID);
+		Constants.saveQbaSessionid(SessionID, qbaAllUserinfoVO);
+	}
+	
+	/**
+	 * Description: Check if the session need update,
+	 * if needing, update the session.
+	 * @param QbaAllUserinfoVO - the userinfo need check and update
+	 * @param interval - minutes of time period.
+	 */
+	public static void sessionUserInfoExpireCheck(QbaAllUserinfoVO qbaAllUserinfoVO,int interval){
+		String SessionID = getSessionidStr();
+		Calendar nowDate=new GregorianCalendar();		
+		nowDate.set(Calendar.MINUTE,nowDate.get(Calendar.MINUTE)-interval);
+		if(qbaAllUserinfoVO.getUpdate_time().before(nowDate.getTime()))
+		{
+			//TODO we need to get the new userinfoVO from DB
+			//qbaAllUserinfoVO=getuserinfo by
+			qbaAllUserinfoVO=VipUserModulesService.getQbaUserinfoNonTime(qbaAllUserinfoVO.getUid());
+			qbaAllUserinfoVO.setUpdate_time(new Date());
+			updateSessionUserInfo(qbaAllUserinfoVO);
+		}
+	}
+
+	
+	
+	//get the session id from cookies
+	private static String getSessionidStr() {
+		String SessionID = "";
+		Cookie[] cookies = ServletActionContext.getRequest().getCookies();
+		if (cookies != null && cookies.length > 0) {
+			for (int i = 0; i < cookies.length; i++) {
+				
+				if (sessionid_cookie_key.equals(cookies[i].getName())) {
+					SessionID = cookies[i].getValue();
+				}
+			}
+		}
+		return SessionID;
+	}
+	
+	/*** 创建并保存SessionInfo ***/
+	public static void saveQbaSessionInfo(QbaAllUserinfoVO qbaAllUserinfoVO) {
+		String sessionid = Constants.makeSessionid(qbaAllUserinfoVO.getAccount()); // 产生sessionid
+		Constants.saveQbaSessionid(sessionid, qbaAllUserinfoVO);
+		Cookie cookie = new Cookie(sessionid_cookie_key, sessionid);
+		cookie.setPath("/");
+		// cookie.setMaxAge(3600*24);
+		ServletActionContext.getResponse().addCookie(cookie);
+	}
+	/*** 删除SessionInfo ***/
+	public static void delQbaSessionInfo(String sid) {
+		String sessionidValue = getSessionidStr();
+		if (sessionidValue != null && sessionidValue.length() > 0)
+			Constants.deleteQbaSessionid(sessionidValue);
+	}
+	
+	// 判断管理员是否有访问某些页面的权限
+	private boolean visitPageAuthority(ActionInvocation invocation,
+			QbaRegisterUserinfoVO qbaRegisterUserinfoVO) {
+		// (1)
+		int role_type = qbaRegisterUserinfoVO.getRole_type();
+		if (role_type == 10)
+			return true;
+
+		// (2)
+		String action_name = invocation.getInvocationContext().getName();
+		String method = invocation.getProxy().getMethod();
+		String filter_name = action_name + "!" + method;
+		Integer interceptPageID = isInterceptPage(filter_name);
+		if (0 == interceptPageID)
+			return true;
+
+		// (3)
+		if (isPageAuthority(interceptPageID, qbaRegisterUserinfoVO))
+			return true;
+
+		return false;
+	}
+
+	private boolean isPageAuthority(int interceptPageID,
+			QbaRegisterUserinfoVO qbaRegisterUserinfoVO) {
+//		String page_authority ="{}";// qbaRegisterUserinfoVO.getPage_authority();
+//		JSONObject jsonObject = JSONObject.fromObject(page_authority); // 对应该类RightItem和initInterceptor
+//																		// ()方法
+//
+//		if (interceptPageID == 1) {
+//			if ((Boolean) jsonObject.get("addressBook"))
+//				return true;
+//		} else if (interceptPageID == 2) {
+//			if ((Boolean) jsonObject.get("group"))
+//				return true;
+//		} else if (interceptPageID == 3) {
+//			return false;
+//		} else if (interceptPageID == 4) {
+//			if ((Boolean) jsonObject.get("repository"))
+//				return true;
+//		} else if (interceptPageID == 5) {
+//			if ((Boolean) jsonObject.get("signIn"))
+//				return true;
+//		} else if (interceptPageID == 6) {
+//			if ((Boolean) jsonObject.get("visitShop"))
+//				return true;
+//		}
+
+		return true;//no effect
+	}
+
+
+
+}

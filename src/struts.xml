@@ -1,0 +1,65 @@
+<?xml version="1.0" encoding="UTF-8" ?>
+<!DOCTYPE struts PUBLIC
+    "-//Apache Software Foundation//DTD Struts Configuration 2.0//EN"
+    "http://struts.apache.org/dtds/struts-2.0.dtd">
+<struts>
+
+	<constant name="struts.i18n.encoding" value="UTF-8"></constant>
+	<constant name="struts.multipart.maxSize" value="10701096" />
+	<constant name="struts.enable.DynamicMethodInvocation" value="true" /><!-- 动态方法调用在2.3中需要手动打开，推方式是使用通配符的方式配置action -->
+	
+	<!-- ################## this package donot AuthorityFilter ##################  -->
+	<package name="qba-web" extends="json-default" namespace="/web">
+		<interceptors>
+			<interceptor name="sysLogInterceptor" class="sysLogInterceptorBean"></interceptor>
+			<interceptor-stack name="mesSysStack">
+				<interceptor-ref name="sysLogInterceptor" />
+				<interceptor-ref name="defaultStack" />
+			</interceptor-stack>
+		</interceptors>
+		<default-interceptor-ref name="mesSysStack" />
+
+		<global-results>
+			<result name="response_rermission_denied">
+				/response_rermission_denied.jsp
+			</result>
+			<result name="response_exception">
+				/response_exception.jsp
+			</result>
+			<result name="response_error_input">
+				/response_error_input.jsp
+			</result>
+		</global-results>
+		<!-- 使用通配符的action配置 -->
+		<!-- 
+		<action name="*Action" class="homeAction" method="{1}">
+			<result name="success">/index.jsp</result>
+			<result type="json" name="jsonSuccess">
+				<param name="root">1</param>
+			</result>
+			<result name="TopicAdded" type="redirect">
+				home!TopicDetail?topicID=${topicID}
+			</result>
+		</action>
+		-->
+		<!-- 动态调用的方式配置action -->
+		<action name="home" class="homeAction">
+			<result name="success">
+				/index.jsp
+			</result>
+			<result type="json" name="jsonSuccess">
+				<param name="root">1</param>
+			</result>
+			<result name="TopicAdded" type="redirect">
+				home!TopicDetail?topicID=${topicID}
+			</result>
+			<result name="TopicDetail">
+				/pages/topic.jsp
+			</result>
+		</action>
+		
+		
+
+	</package>
+		
+</struts>

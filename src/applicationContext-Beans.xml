@@ -1,0 +1,81 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<beans xmlns="http://www.springframework.org/schema/beans"
+	xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance" xmlns:aop="http://www.springframework.org/schema/aop"
+	xmlns:tx="http://www.springframework.org/schema/tx"
+	xsi:schemaLocation="
+			http://www.springframework.org/schema/beans http://www.springframework.org/schema/beans/spring-beans-2.5.xsd
+			http://www.springframework.org/schema/aop http://www.springframework.org/schema/aop/spring-aop-2.5.xsd
+			http://www.springframework.org/schema/tx http://www.springframework.org/schema/tx/spring-tx-2.5.xsd">
+
+	<!-- Hibernate 集成配置 -->
+	<!--DataBase Configuration-->
+	<bean id="dataSource" class="org.apache.commons.dbcp.BasicDataSource" destroy-method="close">
+		<property name="driverClassName" value="org.gjt.mm.mysql.Driver" />
+		<property name="url" value="jdbc:mysql://localhost:3306/BBS_DB?useUnicode=true&amp;characterEncoding=GBK" />
+		<property name="username" value="root" />
+		<property name="password" value="111222" />
+		<property name="initialSize" value="1" />
+		<property name="maxActive" value="500" />
+		<property name="maxIdle" value="2" />
+		<property name="minIdle" value="1" />
+	</bean>
+ 	<bean id="sessionFactory" class="org.springframework.orm.hibernate3.LocalSessionFactoryBean">
+  		<property name="dataSource" ref="dataSource" />
+
+		<property name="hibernateProperties">
+			<props>
+				<prop key="hibernate.show_sql">true</prop>
+				<prop key="hibernate.format_sql">true</prop>
+			</props>
+		</property>
+
+		<property name="mappingResources">
+			<list>
+				<value>com/bbs/web/bean/ReplayBean.hbm.xml</value>
+				<value>com/bbs/web/bean/TopicBean.hbm.xml</value>
+			</list>
+		</property>
+	</bean>
+
+	<!-- ************************Common Tool************************ -->
+	<bean id="springServiceLocator" class="com.bbs.common.base.SpringServiceLocator"
+		scope="singleton">
+	</bean>
+	<!--
+		<bean id="userSessionInterceptorBean"
+		class="com.bbs.common.UserSessionInterceptor" scope="singleton"
+		init-method="initInterceptor"> </bean>
+	-->
+	<bean id="sysLogInterceptorBean" class="com.bbs.common.SysLogInterceptor"
+		scope="singleton">
+	</bean>
+	
+	
+	
+	
+	
+
+	<!-- ************************Actions************************ -->
+	<bean id="homeAction" class="com.bbs.web.action.HomeAction" scope="prototype">
+		<property name="topic2ReplayService" ref="topic2ReplayService"></property>
+	</bean>
+
+	<!-- DAO -->
+	<bean id="topicDao" class="com.bbs.web.dao.Ipml.TopicDao" scope="prototype">
+		<property name="sessionFactory" ref="sessionFactory"/>
+	</bean>
+	<bean id="replayDao" class="com.bbs.web.dao.Ipml.ReplayDao" scope="prototype">
+		<property name="sessionFactory" ref="sessionFactory"/>
+	</bean>
+	
+	<!-- service -->
+	<bean id="topic2ReplayService" class="com.bbs.web.service.Topic2ReplayService" scope="prototype">
+		<property name="topicDao" ref="topicDao"></property>
+		<property name="replayDao" ref="replayDao"></property>
+	</bean>
+	
+	
+
+</beans>
+
+
